@@ -1,3 +1,6 @@
+extern crate cfg_if;
+extern crate wasm_bindgen;
+extern crate web_sys;
 use std::fmt::{Display, Formatter};
 
 use rand::seq::SliceRandom;
