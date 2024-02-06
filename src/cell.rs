@@ -1,17 +1,21 @@
+extern crate cfg_if;
+extern crate wasm_bindgen;
+extern crate web_sys;
+use wasm_bindgen::prelude::*;
 use std::fmt::{Display, Formatter};
 
 use rand::{thread_rng, Rng};
-
 use crate::direction::Cardinal;
 use crate::element::Physics;
-use crate::{simulation, Action, Simulation, Vector2D};
+use crate::{Action, Simulation, Vector2D};
 use crate::{Direction, Element};
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy)]
 pub struct Cell {
-    pub element: Element,
-    pub velocity: Vector2D<i8>,
-    pub life: Option<u32>,
+    element: Element,
+    velocity: Vector2D,
+    life: Option<u32>,
     variant: u8,
     updated: bool,
 }
@@ -22,6 +26,7 @@ impl Display for Cell {
     }
 }
 
+#[wasm_bindgen]
 impl Cell {
     pub fn new(element: Element) -> Self {
         let mut rng = rand::thread_rng();
@@ -44,7 +49,7 @@ impl Cell {
             updated: false,
         }
     }
-    pub fn update(&self, origin: Vector2D<usize>, sim: &Simulation) -> Vec<Action> {
+    pub fn update(&self, origin: Vector2D, sim: &Simulation) -> Vec<Action> {
         type Dir = Direction;
         type Car = Cardinal;
         let mut actions: Vec<Action> = vec![];
@@ -111,10 +116,10 @@ impl Cell {
                     actions.push(action);
                 }
                 actions.extend(self.eat_neighbour(origin, sim));
-                actions.push(Action::Burn(origin));
+                actions.push(Action::new_burn(origin));
             }
             Element::Lava => {
-                actions.push(Action::Burn(origin));
+                actions.push(Action::new_burn(origin));
                 let first = rng.gen_bool(0.5);
                 if let Some(action) = self.move_to(origin, Dir::new(Car::S, 1), sim) {
                     actions.push(action);
@@ -145,9 +150,10 @@ impl Cell {
                 }
             }
             Element::Oil => {
-                if let Some((cell, position)) = sim.at(&origin, Dir::new(Car::N, 1)) {
-                    if cell.element() == Element::Air {
-                        actions.push(Action::Burn(position))
+                let destintion = sim.at(&origin, Dir::new(Car::N, 1));
+                if sim.in_bounds(&destintion) {
+                    if sim.check_cell(destintion) == Element::Air {
+                        actions.push(Action::new_burn(destintion))
                     }
                 }
 
@@ -197,7 +203,7 @@ impl Cell {
                 } else if let Some(action) = self.move_to(origin, Dir::new(Car::SE, 2), sim) {
                     actions.push(action);
                 }
-                actions.push(Action::Disolve(origin));
+                actions.push(Action::new_disolve(origin));
             }
             Element::CanonPowder => {
                 if let Some(action) = self.move_to(origin, Dir::new(Car::S, 2), sim) {
@@ -218,7 +224,7 @@ impl Cell {
                 }
             }
             Element::Fire => {
-                actions.push(Action::Burn(origin));
+                actions.push(Action::new_burn(origin));
                 let dir = rng.gen_range(0..12);
                 if dir == 0 {
                     if let Some(action) = self.move_to(origin, Dir::new(Car::E, 1), sim) {
@@ -264,13 +270,13 @@ impl Cell {
                 }
             }
             Element::Ember => {
-                actions.push(Action::Burn(origin));
+                actions.push(Action::new_burn(origin));
             }
             Element::Moss => {
-                actions.push(Action::Grow(origin));
+                actions.push(Action::new_grow(origin));
             }
             Element::Ice => {
-                actions.push(Action::Liquidize(origin));
+                actions.push(Action::new_liquidize(origin));
             }
             Element::Gas => {
                 let distance = rng.gen_range(1..=2);
@@ -286,7 +292,7 @@ impl Cell {
 
     fn move_to(
         &self,
-        from: Vector2D<usize>,
+        from: Vector2D,
         mut to: Direction,
         simulation: &Simulation,
     ) -> Option<Action> {
@@ -294,43 +300,47 @@ impl Cell {
         let mut destination: Option<Action> = None;
         for i in 1..=distance {
             to.set_distance(i);
-            if let Some((cell, _)) = simulation.at(&from, to) {
-                if cell.element.solid() {
-                    break;
-                }
-                if cell.element == self.element {
-                    break;
-                }
-                if self.element == Element::Gas && cell.element == Element::Air {
-                    destination = Some(Action::Move(from, to));
-                    continue;
-                }
-                if to.factor().y == 1 && self.element.density() > cell.element.density() {
-                    destination = Some(Action::Move(from, to));
-                    continue;
-                } else if to.factor().y == -1 && self.element.density() < cell.element.density() {
-                    destination = Some(Action::Move(from, to));
-                    continue;
-                } else if to.factor().y == 0 && self.element.density() >= cell.element.density() {
-                    destination = Some(Action::Move(from, to));
-                    continue;
-                }
+
+            let destintion = simulation.at(&from, to);
+            if !simulation.in_bounds(&destintion) {
+                continue;
+            }
+            let cell = simulation.check_cell(destintion);
+            if cell.solid() {
+                break;
+            }
+            if cell == self.element {
+                break;
+            }
+            if self.element == Element::Gas && cell == Element::Air {
+                destination = Some(Action::new_move(from, to));
+                continue;
+            }
+            if to.factor().y == 1 && self.element.density() > cell.density() {
+                destination = Some(Action::new_move(from, to));
+                continue;
+            } else if to.factor().y == -1 && self.element.density() < cell.density() {
+                destination = Some(Action::new_move(from, to));
+                continue;
+            } else if to.factor().y == 0 && self.element.density() >= cell.density() {
+                destination = Some(Action::new_move(from, to));
+                continue;
             }
             break;
         }
         destination
     }
 
-    fn eat_neighbour(&self, from: Vector2D<usize>, simulation: &Simulation) -> Vec<Action> {
+    fn eat_neighbour(&self, from: Vector2D, simulation: &Simulation) -> Vec<Action> {
         let mut rng = thread_rng();
         let mut actions: Vec<Action> = vec![];
-        for (cell, at) in simulation.get_neighbours(&from) {
-            if cell.element == Element::Air || cell.element == Element::Acid {
+        for at in simulation.get_neighbours(&from) {
+            if simulation.check_cell(at) == Element::Air || simulation.check_cell(at) == Element::Acid {
                 continue;
             }
-            let eat = rng.gen_bool(0.2 * (1.0 / (cell.element.density() * 3.0)));
+            let eat = rng.gen_bool(0.2 * (1.0 / (simulation.check_cell(at).density() * 3.0)));
             if eat {
-                actions.push(Action::Eat(at, Element::Air));
+                actions.push(Action::new_eat(at, Element::Air));
             }
         }
         actions
@@ -385,5 +395,29 @@ impl Cell {
             }
             None => {}
         }
+    }
+
+    pub fn get_velocity(&self) -> Vector2D {
+        self.velocity
+    }
+
+    pub fn set_velocity(&mut self, velocity: Vector2D) {
+        self.velocity = velocity;
+    }
+
+    pub fn get_element(&self) -> Element {
+        self.element
+    }
+
+    pub fn set_element(&mut self, element: Element) {
+        self.element = element;
+    }
+
+    pub fn get_life(&self) -> Option<u32> {
+        self.life
+    }
+
+    pub fn set_life(&mut self, life: Option<u32>) {
+        self.life = life;
     }
 }

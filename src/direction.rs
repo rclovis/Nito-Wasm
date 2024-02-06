@@ -1,13 +1,19 @@
+extern crate cfg_if;
+extern crate wasm_bindgen;
+extern crate web_sys;
+use wasm_bindgen::prelude::*;
 use rand::{thread_rng, Rng};
 
 use crate::Vector2D;
 
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub struct Direction {
     pub cardinal: Cardinal,
     pub distance: u32,
 }
 
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub enum Cardinal {
     N,
@@ -37,6 +43,7 @@ impl Cardinal {
     }
 }
 
+#[wasm_bindgen]
 impl Direction {
     pub fn new(cardinal: Cardinal, distance: u32) -> Self {
         Self { cardinal, distance }
@@ -57,7 +64,7 @@ impl Direction {
         Self { cardinal, distance }
     }
 
-    pub fn factor(&self) -> Vector2D<i8> {
+    pub fn factor(&self) -> Vector2D {
         match self.cardinal {
             Cardinal::N => Vector2D { x: 0, y: -1 },
             Cardinal::NE => Vector2D { x: 1, y: -1 },

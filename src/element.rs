@@ -1,6 +1,12 @@
+extern crate cfg_if;
+extern crate wasm_bindgen;
+extern crate web_sys;
+use wasm_bindgen::prelude::*;
 use std::fmt::{Display, Formatter};
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Element {
     Air,
     Water,

@@ -1,11 +1,16 @@
 extern crate cfg_if;
 extern crate wasm_bindgen;
 extern crate web_sys;
+// use std::fmt;
+use wasm_bindgen::prelude::*;
+// use web_sys::console;
+
 use std::fmt::{Display, Formatter};
 
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+use crate::action::ActionType;
 use crate::direction::Cardinal;
 use crate::element::Physics;
 use crate::Cell;
@@ -13,9 +18,12 @@ use crate::Element;
 use crate::Vector2D;
 use crate::{Action, Direction};
 
+
+#[wasm_bindgen]
 pub struct Simulation {
-    dimensions: Vector2D<usize>,
-    pub world: Vec<Vec<Cell>>,
+    dimensions: Vector2D,
+    world: Vec<Vec<Cell>>,
+    data: Vec<u8>,
 }
 
 impl Display for Simulation {
@@ -30,11 +38,21 @@ impl Display for Simulation {
     }
 }
 
+#[wasm_bindgen]
 impl Simulation {
-    pub fn new(x: usize, y: usize) -> Self {
+    pub fn width(&self) -> i32 {
+        self.dimensions.x
+    }
+
+    pub fn height(&self) -> i32 {
+        self.dimensions.y
+    }
+
+    pub fn new(x: i32, y: i32) -> Self {
         Self {
             dimensions: Vector2D { x, y },
-            world: vec![vec![Cell::new(Element::Air); x]; y],
+            world: vec![vec![Cell::new(Element::Air); x as usize]; y as usize],
+            data: vec![0; (x * y) as usize],
         }
     }
     pub fn update(&mut self) {
@@ -44,168 +62,157 @@ impl Simulation {
             shuffle.shuffle(&mut rand::thread_rng());
 
             for x in shuffle {
-                let action = row[x].update(Vector2D { x, y }, &self);
+                let action = row[x].update(Vector2D { x: x as i32, y: y as i32 }, &self);
                 for action in action {
                     self.apply_actions(action);
                 }
                 self.world[y][x].decay();
             }
         }
-    }
-    pub fn dump(&mut self, first: bool) -> Vec<u8> {
-        let mut data: Vec<u8> = vec![];
-        let mut body: Vec<u8> = vec![];
-        data.extend((self.dimensions.x as u16).to_le_bytes());
-        data.extend((self.dimensions.y as u16).to_le_bytes());
-        let buffer = self.world.clone();
-        for (y, row) in buffer.iter().enumerate() {
-            for (x, cell) in row.iter().enumerate() {
-                if cell.updated() || (first && cell.element() != Element::Air) {
-                    body.extend((x as u16).to_le_bytes());
-                    body.extend((y as u16).to_le_bytes());
-                    body.push(cell.element().to_byte());
-                    body.extend((cell.variant() as u8).to_le_bytes());
-                    self.world[y][x].reset_update();
-                }
+        self.data.clear();
+        for (_, row) in self.world.iter().enumerate() {
+            for (_, cell) in row.iter().enumerate() {
+                self.data.push(cell.element().to_byte());
             }
         }
-        data.extend(((body.len() / 6) as u32).to_le_bytes());
-        data.extend(body);
-        data
+    }
+    pub fn dump(&mut self) -> *const u8 {
+        self.data.as_ptr()
     }
 
-    fn in_bounds(&self, position: &Vector2D<usize>) -> bool {
-        position.x < self.dimensions.x && position.y < self.dimensions.y
+    pub fn in_bounds(&self, position: &Vector2D) -> bool {
+        position.x < self.dimensions.x && position.y < self.dimensions.y && position.x >= 0 && position.y >= 0
     }
 
-    pub fn at(
-        &self,
-        from: &Vector2D<usize>,
-        direction: Direction,
-    ) -> Option<(Cell, Vector2D<usize>)> {
+    fn get_cell(&self, position: Vector2D) -> &Cell {
+        &self.world[position.y as usize][position.x as usize]
+    }
+
+    pub fn check_cell(&self, position: Vector2D) -> Element {
+        self.world[position.y as usize][position.x as usize].element()
+    }
+
+    pub fn at(&self, from: &Vector2D, direction: Direction) -> Vector2D {
         let factor = direction.factor();
         let destination = Vector2D {
-            x: (from.x as isize + direction.distance() as isize * factor.x as isize) as usize,
-            y: (from.y as isize + direction.distance() as isize * factor.y as isize) as usize,
+            x: (from.x + direction.distance() as i32 * factor.x),
+            y: (from.y + direction.distance() as i32 * factor.y),
         };
-        if !self.in_bounds(&from) || !self.in_bounds(&destination) {
-            return None;
-        }
-        Some((self.world[destination.y][destination.x], destination))
+        destination
     }
 
-    pub fn apply_actions(&mut self, action: Action) {
-        match action {
-            Action::Move(mut from, to) => {
-                for _ in 1..=to.distance() {
-                    let factor = to.factor();
+    pub fn apply_actions(&mut self, mut action: Action) {
+        match action.t {
+            ActionType::Move => {
+                for _ in 1..=action.d.distance() {
+                    let factor = action.d.factor();
                     let destination = Vector2D {
-                        x: (from.x as isize + factor.x as isize) as usize,
-                        y: (from.y as isize + factor.y as isize) as usize,
+                        x: (action.v.x + factor.x),
+                        y: (action.v.y + factor.y),
                     };
-                    self.swap(&from, &destination);
-                    from = destination;
+                    self.swap(&action.v, &destination);
+                    action.v = destination;
                 }
             }
-            Action::Eat(position, replacement) => {
-                self.world[position.y][position.x].element = replacement;
+            ActionType::Eat => {
+                self.world[action.v.y as usize][action.v.x as usize].set_element(action.e);
             }
-            Action::Burn(position) => {
-                let source = self.world[position.y][position.x].element();
+            ActionType::Burn => {
+                let source = self.world[action.v.y as usize][action.v.x as usize].element();
                 let mut rng = rand::thread_rng();
-                for neighbour in self.get_neighbours(&position) {
-                    let ignite = rng.gen_bool(neighbour.0.element().flammability() * source.heat());
+                for neighbour in self.get_neighbours(&action.v) {
+                    let ignite = rng.gen_bool(self.get_cell(neighbour).element().flammability() * source.heat());
                     if ignite {
-                        if neighbour.0.element() == Element::Wood {
-                            self.world[neighbour.1.y][neighbour.1.x].element = Element::Ember;
-                        } else if neighbour.0.element() == Element::Coal {
-                            self.world[neighbour.1.y][neighbour.1.x].element = Element::Ember;
+                        if self.get_cell(neighbour).element() == Element::Wood {
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_element(Element::Ember);
+                        } else if self.get_cell(neighbour).element() == Element::Coal {
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_element(Element::Ember);
                         } else {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Fire);
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Fire);
                         }
-                        self.world[neighbour.1.y][neighbour.1.x].set_update();
+                        self.world[neighbour.y as usize][neighbour.x as usize].set_update();
                     }
                     if source == Element::Ember
-                        && neighbour.0.element() == Element::Air
+                        && self.get_cell(neighbour).element() == Element::Air
                         && rng.gen_bool(0.005)
                     {
                         if rng.gen_bool(0.5) {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Smoke);
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Smoke);
                         } else {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Fire);
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Fire);
                         }
-                        self.world[neighbour.1.y][neighbour.1.x].set_update();
+                        self.world[neighbour.y as usize][neighbour.x as usize].set_update();
                     }
-                    if source == Element::Ember && neighbour.0.element() == Element::Water {
-                        self.world[position.y][position.x] = Cell::new(Element::Coal);
-                        self.world[position.y][position.x].set_update();
+                    if source == Element::Ember && self.get_cell(neighbour).element() == Element::Water {
+                        self.world[action.v.y as usize][action.v.x as usize] = Cell::new(Element::Coal);
+                        self.world[action.v.y as usize][action.v.x as usize].set_update();
                     }
                     if source == Element::Lava {
-                        if neighbour.0.element() == Element::Water {
-                            self.world[position.y][position.x] = Cell::new(Element::Stone);
-                            self.world[position.y][position.x].set_update();
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Stone);
-                            self.world[neighbour.1.y][neighbour.1.x].set_update();
+                        if self.get_cell(neighbour).element() == Element::Water {
+                            self.world[action.v.y as usize][action.v.x as usize] = Cell::new(Element::Stone);
+                            self.world[action.v.y as usize][action.v.x as usize].set_update();
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Stone);
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_update();
                         }
-                        if neighbour.0.element() == Element::Ice {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Water);
-                            self.world[neighbour.1.y][neighbour.1.x].set_update();
+                        if self.get_cell(neighbour).element() == Element::Ice {
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Water);
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_update();
                         }
-                        if neighbour.0.element() == Element::Air && rng.gen_bool(0.01) {
+                        if self.get_cell(neighbour).element() == Element::Air && rng.gen_bool(0.01) {
                             if rng.gen_bool(0.9) {
-                                self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Smoke);
+                                self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Smoke);
                             } else {
-                                self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Fire);
+                                self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Fire);
                             }
-                            self.world[neighbour.1.y][neighbour.1.x].set_update();
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_update();
                         }
                     }
-                    if source == Element::Acid && neighbour.0.element() == Element::Air {
+                    if source == Element::Acid && self.get_cell(neighbour).element() == Element::Air {
                         if rng.gen_bool(0.01) {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Gas);
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Gas);
                         }
                         if rng.gen_bool(0.01) {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Smoke);
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Smoke);
                         }
                     }
-                    if source == Element::Air && neighbour.0.element() == Element::Fire {
+                    if source == Element::Air && self.get_cell(neighbour).element() == Element::Fire {
                         if rng.gen_bool(0.5) {
-                            self.world[position.y][position.x] = Cell::new(Element::Fire);
+                            self.world[action.v.y as usize][action.v.x as usize] = Cell::new(Element::Fire);
                             return;
                         }
                     }
                 }
             }
-            Action::Grow(position) => {
+            ActionType::Grow => {
                 let mut rng = rand::thread_rng();
-                for neighbour in self.get_neighbours(&position) {
+                for neighbour in self.get_neighbours(&action.v) {
                     if rng.gen_bool(0.005) {
-                        if neighbour.0.element() == Element::Water {
-                            self.world[neighbour.1.y][neighbour.1.x] = Cell::new(Element::Moss);
-                            self.world[neighbour.1.y][neighbour.1.x].set_update();
+                        if self.get_cell(neighbour).element() == Element::Water {
+                            self.world[neighbour.y as usize][neighbour.x as usize] = Cell::new(Element::Moss);
+                            self.world[neighbour.y as usize][neighbour.x as usize].set_update();
 
                         }
                     }
                 }
             }
-            Action::Disolve(position) => {
+            ActionType::Disolve => {
                 let mut rng = rand::thread_rng();
-                for neighbour in self.get_neighbours(&position) {
+                for neighbour in self.get_neighbours(&action.v) {
                     if rng.gen_bool(0.005) {
-                        if neighbour.0.element() == Element::Water {
-                            self.world[position.y][position.x] = Cell::new(Element::Water);
-                            self.world[position.y][position.x].set_update();
+                        if self.get_cell(neighbour).element() == Element::Water {
+                            self.world[action.v.y as usize][action.v.x as usize] = Cell::new(Element::Water);
+                            self.world[action.v.y as usize][action.v.x as usize].set_update();
                         }
                     }
                 }
             }
-            Action::Liquidize(position) => {
+            ActionType::Liquidize => {
                 let mut rng = rand::thread_rng();
-                for neighbour in self.get_neighbours(&position) {
+                for neighbour in self.get_neighbours(&action.v) {
                     if rng.gen_bool(0.1) {
-                        if neighbour.0.element() == Element::Fire || neighbour.0.element() == Element::Ember || neighbour.0.element() == Element::Smoke {
-                            self.world[position.y][position.x] = Cell::new(Element::Water);
-                            self.world[position.y][position.x].set_update();
+                        if self.get_cell(neighbour).element() == Element::Fire || self.get_cell(neighbour).element() == Element::Smoke {
+                            self.world[action.v.y as usize][action.v.x as usize] = Cell::new(Element::Water);
+                            self.world[action.v.y as usize][action.v.x as usize].set_update();
                         }
                     }
                 }
@@ -214,22 +221,29 @@ impl Simulation {
         }
     }
 
-    pub fn swap(&mut self, from: &Vector2D<usize>, to: &Vector2D<usize>) {
-        let temp = self.world[from.y][from.x];
-        self.world[from.y][from.x] = self.world[to.y][to.x];
-        self.world[to.y][to.x] = temp;
+    pub fn swap(&mut self, from: &Vector2D, to: &Vector2D) {
+        let temp = self.world[from.y as usize][from.x as usize];
+        self.world[from.y as usize][from.x as usize] = self.world[to.y as usize][to.x as usize];
+        self.world[to.y as usize][to.x as usize] = temp;
 
-        self.world[from.y][from.x].set_update();
-        self.world[to.y][to.x].set_update();
+        self.world[from.y as usize][from.x as usize].set_update();
+        self.world[to.y as usize][to.x as usize].set_update();
     }
 
-    pub fn get_neighbours(&self, position: &Vector2D<usize>) -> Vec<(Cell, Vector2D<usize>)> {
-        let mut neighbours: Vec<(Cell, Vector2D<usize>)> = vec![];
+    pub fn get_neighbours(&self, position: &Vector2D) -> Vec<Vector2D> {
+        let mut neighbours: Vec<Vector2D> = vec![];
         for orientation in Cardinal::iter() {
-            if let Some((cell, destination)) = self.at(position, Direction::new(orientation, 1)) {
-                neighbours.push((cell, destination));
+            let destintion = self.at(position, Direction::new(orientation, 1));
+            if !self.in_bounds(&destintion) {
+                continue;
             }
+            neighbours.push(destintion);
         }
         neighbours
+    }
+
+    pub fn set_cell(&mut self, x: i32, y: i32, element: i32) {
+        let element = Element::from_byte(element as u8).unwrap();
+        self.world[y as usize][x as usize] = Cell::new(element);
     }
 }
