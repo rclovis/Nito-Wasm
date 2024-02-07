@@ -2,3 +2,4 @@
 .vscode
 Core/src/core/.*.rustfmt
 target
+www/.git
