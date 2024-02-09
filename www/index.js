@@ -173,7 +173,6 @@ const handleMouseEvent = (event) => {
       if (x < 0 || x >= height || y < 0 || y >= width) continue;
       if (squareDistance(row, col, x, y) > Math.pow(toolSize / 2, 2)) continue;
       universe.set_cell(y, x, materialIndex + 1);
-      console.log (x, y);
     }
   }
 

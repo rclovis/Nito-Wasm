@@ -161,6 +161,13 @@ impl Element {
             8 => Ok(Self::Gas),
             9 => Ok(Self::Stone),
             10 => Ok(Self::Coal),
+            11 => Ok(Self::Salt),
+            12 => Ok(Self::Cinder),
+            13 => Ok(Self::Lava),
+            14 => Ok(Self::Oil),
+            15 => Ok(Self::Moss),
+            16 => Ok(Self::CanonPowder),
+            17 => Ok(Self::Ice),
             _ => Err(()),
         }
     }
