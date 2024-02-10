@@ -1,8 +1,0 @@
-[endpoint]
-address = "0.0.0.0"
-port = "4242"
-
-[world]
-x = 200
-y = 100
-frequency = 50

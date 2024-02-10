@@ -7,7 +7,6 @@ extern crate core;
 pub use action::Action;
 pub use cell::Cell;
 #[allow(dead_code, unused)]
-pub use config::open_config;
 pub use direction::Direction;
 pub use element::Element;
 pub use simulation::Simulation;

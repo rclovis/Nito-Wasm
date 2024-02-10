@@ -52,7 +52,7 @@ impl Simulation {
         Self {
             dimensions: Vector2D { x, y },
             world: vec![vec![Cell::new(Element::Air); x as usize]; y as usize],
-            data: vec![0; (x * y) as usize],
+            data: vec![0; ((x * y) * 3) as usize],
         }
     }
     pub fn update(&mut self) {
@@ -62,17 +62,26 @@ impl Simulation {
             shuffle.shuffle(&mut rand::thread_rng());
 
             for x in shuffle {
-                let action = row[x].update(Vector2D { x: x as i32, y: y as i32 }, &self);
+                let action = self.world[y][x].update(Vector2D { x: x as i32, y: y as i32 }, &self);
                 for action in action {
                     self.apply_actions(action);
                 }
                 self.world[y][x].decay();
             }
         }
-        self.data.clear();
-        for (_, row) in self.world.iter().enumerate() {
-            for (_, cell) in row.iter().enumerate() {
-                self.data.push(cell.element().to_byte());
+        for y in 0..self.dimensions.y {
+            for x in 0..self.dimensions.x {
+                self.data[((y * self.dimensions.x + x) * 3) as usize] = self.world[y as usize][x as usize].element().to_byte();
+                self.data[((y * self.dimensions.x + x) * 3 + 1) as usize] = self.world[y as usize][x as usize].variant();
+                self.data[((y * self.dimensions.x + x) * 3 + 2) as usize] = self.world[y as usize][x as usize].updated() as u8;
+            }
+        }
+    }
+
+    pub fn reset_update(&mut self) {
+        for row in self.world.iter_mut() {
+            for cell in row.iter_mut() {
+                cell.reset_update();
             }
         }
     }
@@ -245,5 +254,6 @@ impl Simulation {
     pub fn set_cell(&mut self, x: i32, y: i32, element: i32) {
         let element = Element::from_byte(element as u8).unwrap();
         self.world[y as usize][x as usize] = Cell::new(element);
+        self.world[y as usize][x as usize].set_update();
     }
 }

@@ -7,24 +7,24 @@ const HEIGHT = 200;
 let toolSize = 5;
 
 const CELL_COLORS = [
-  "rgba(255, 255, 240)",  // Air
-  "rgba(33, 163, 219)",   // Water
-  "rgba(246, 215, 176)",  // Sand
-  "rgba(130, 94, 51)",    // Wood
-  "rgba(255, 85, 33)",    // Fire
-  "rgba(200, 200, 200)",  // Smoke
-  "rgba(0, 200, 0)",      // Acid
-  "rgba(237, 54, 33)",    // Ember
-  "rgba(200, 200, 0)",    // Gas
-  "rgba(80, 80, 80)",     // Stone
-  "rgba(30, 30, 30)",     // Coal
-  "rgba(255, 255, 255)",  // Salt
-  "rgba(128, 128, 128)",  // Cinder
-  "rgba(255, 0, 0)",      // Lava
-  "rgba(126, 0, 135)",    // Oil
-  "rgba(0, 255, 0)",      // Moss
-  "rgba(255, 255, 0)",    // Canon Powder
-  "rgba(0, 255, 255)",    // Ice
+  [255, 255, 240],  // Air
+  [33, 163, 219],   // Water
+  [246, 215, 176],  // Sand
+  [130, 94, 51],    // Wood
+  [255, 85, 33],    // Fire
+  [200, 200, 200],  // Smoke
+  [0, 200, 0],      // Acid
+  [237, 54, 33],    // Ember
+  [200, 200, 0],    // Gas
+  [80, 80, 80],     // Stone
+  [30, 30, 30],     // Coal
+  [255, 255, 255],  // Salt
+  [128, 128, 128],  // Cinder
+  [255, 0, 0],      // Lava
+  [126, 0, 135],    // Oil
+  [0, 255, 0],      // Moss
+  [255, 255, 0],    // Canon Powder
+  [0, 255, 255],    // Ice
 ];
 
 const universe = Simulation.new(WIDTH, HEIGHT);
@@ -131,15 +131,30 @@ const getIndex = (row, column) => {
   return row * WIDTH + column;
 };
 
+const getCellColor = (type, variant) => {
+  let color = CELL_COLORS[type];
+  let d;
+  switch (type) {
+    case 0:
+      return ('rgb(' + color[0] + ',' + color[1] + ',' + color[2] + ')');
+    default:
+      let variantT = variant * 5 / 255;
+      d = ((variantT / 5) * 0.2 + 0.8);
+      return ('rgb(' + color[0] * d + ',' + color[1] * d + ',' + color[2] * d + ')');
+  }
+};
+
+
 const drawCells = () => {
   const cellsPtr = universe.dump();
-  const cells = new Uint8Array(memory.buffer, cellsPtr, WIDTH * HEIGHT);
+  const cells = new Uint8Array(memory.buffer, cellsPtr, (WIDTH * HEIGHT) * 3);
   ctx.beginPath();
 
   for (let row = 0; row < HEIGHT; row++) {
     for (let col = 0; col < WIDTH; col++) {
+      if (cells[getIndex(row, col) * 3 + 2] == 0) continue;
       const idx = getIndex(row, col);
-      ctx.fillStyle = CELL_COLORS[cells[idx]];
+      ctx.fillStyle = getCellColor(cells[idx * 3], cells[idx * 3 + 1]);
       ctx.fillRect(
         col * (CELL_SIZE),
         row * (CELL_SIZE),
@@ -148,6 +163,7 @@ const drawCells = () => {
       );
     }
   }
+  universe.reset_update();
 };
 
 const squareDistance = (x1, y1, x2, y2) => {
