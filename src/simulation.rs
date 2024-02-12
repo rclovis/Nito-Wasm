@@ -62,7 +62,10 @@ impl Simulation {
             shuffle.shuffle(&mut rand::thread_rng());
 
             for x in shuffle {
-                let action = self.world[y][x].update(Vector2D { x: x as i32, y: y as i32 }, &self);
+                if row[x].updated() == true {
+                    continue;
+                }
+                let action = row[x].update(Vector2D { x: x as i32, y: y as i32 }, &self);
                 for action in action {
                     self.apply_actions(action);
                 }
@@ -86,6 +89,7 @@ impl Simulation {
         }
     }
     pub fn dump(&mut self) -> *const u8 {
+        self.reset_update();
         self.data.as_ptr()
     }
 
@@ -252,6 +256,10 @@ impl Simulation {
     }
 
     pub fn set_cell(&mut self, x: i32, y: i32, element: i32) {
+        if self.world[y as usize][x as usize].get_element() != Element::Air
+        {
+            return
+        }
         let element = Element::from_byte(element as u8).unwrap();
         self.world[y as usize][x as usize] = Cell::new(element);
         self.world[y as usize][x as usize].set_update();

@@ -28,6 +28,8 @@ const CELL_COLORS = [
 ];
 
 const universe = Simulation.new(WIDTH, HEIGHT);
+const slider = document.getElementById('slider');
+const output = document.getElementById('output-tooltip');
 
 // Give the canvas room for all of our cells and a 1px border
 // around each of them.
@@ -49,7 +51,11 @@ const updateMousePosition = (event) => {
   mouseY = event.clientY;
 }
 
-const renderLoop = () => {
+
+let lastTimestamp = 0;
+
+const renderLoop = (timestamp) => {
+  universe.update();
   drawCells();
 
   if (drawing) {
@@ -70,8 +76,13 @@ const renderLoop = () => {
       }
     }
   }
-  universe.update();
-  animationId = requestAnimationFrame(renderLoop);
+  const elapsedFrameTime = timestamp - lastTimestamp;
+  const delay = Math.max(0, 1000 / (slider.value * 60 / 100) - elapsedFrameTime);
+  setTimeout(() => {
+    animationId = requestAnimationFrame(renderLoop);
+    lastTimestamp = timestamp;
+  }, delay);
+
 };
 
 const isPaused = () => {
@@ -82,7 +93,7 @@ const playPauseButton = document.getElementById("play-pause");
 
 const play = () => {
   playPauseButton.textContent = "⏸";
-  renderLoop();
+  requestAnimationFrame(renderLoop);
 };
 
 const pause = () => {
@@ -99,8 +110,7 @@ playPauseButton.addEventListener("click", event => {
   }
 });
 
-const slider = document.getElementById('slider');
-const output = document.getElementById('output-tooltip');
+
 
 // Display the initial value
 output.textContent = slider.value + '%';
@@ -163,7 +173,7 @@ const drawCells = () => {
       );
     }
   }
-  universe.reset_update();
+  // universe.reset_update();
 };
 
 const squareDistance = (x1, y1, x2, y2) => {
