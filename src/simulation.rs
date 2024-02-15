@@ -256,7 +256,7 @@ impl Simulation {
     }
 
     pub fn set_cell(&mut self, x: i32, y: i32, element: i32) {
-        if self.world[y as usize][x as usize].get_element() != Element::Air
+        if self.world[y as usize][x as usize].get_element() != Element::Air && element != 0
         {
             return
         }

@@ -1,7 +1,7 @@
 import { Simulation } from "nito";
 import { memory } from "nito/nito_bg";
 
-const CELL_SIZE = 5;
+let CELL_SIZE = 5;
 const WIDTH = 200;
 const HEIGHT = 200;
 let toolSize = 5;
@@ -33,14 +33,13 @@ const output = document.getElementById('output-tooltip');
 
 // Give the canvas room for all of our cells and a 1px border
 // around each of them.
-const canvas = document.getElementById("game-of-life-canvas");
+const canvas = document.getElementById("nito-canvas");
 canvas.height = (CELL_SIZE) * HEIGHT;
 canvas.width = (CELL_SIZE) * WIDTH;
 
 
 const ctx = canvas.getContext('2d');
 
-let animationId = null;
 let drawing = false;
 let paused = false;
 
@@ -63,19 +62,19 @@ const renderLoop = (timestamp) => {
     const scaleY = canvas.height / boundingRect.height;
     const canvasLeft = (mouseX - boundingRect.left) * scaleX;
     const canvasTop = (mouseY - boundingRect.top) * scaleY;
-    const row = Math.min(Math.floor(canvasTop / (CELL_SIZE)), HEIGHT);
-    const col = Math.min(Math.floor(canvasLeft / (CELL_SIZE)), WIDTH);
+    const row = Math.min(Math.round(canvasTop / (CELL_SIZE)), HEIGHT);
+    const col = Math.min(Math.round(canvasLeft / (CELL_SIZE)), WIDTH);
     for (let i = 0; i < toolSize; i++) {
       for (let j = 0; j < toolSize; j++) {
-        let x = row - Math.floor(toolSize / 2) + i;
-        let y = col - Math.floor(toolSize / 2) + j;
+        let x = row - Math.round(toolSize / 2) + i;
+        let y = col - Math.round(toolSize / 2) + j;
         if (x < 0 || x >= HEIGHT || y < 0 || y >= WIDTH) continue;
         if (squareDistance(row, col, x, y) > Math.pow(toolSize / 2, 2)) continue;
-        universe.set_cell(y, x, materialIndex + 1);
+        universe.set_cell(y, x, materialIndex);
       }
     }
   }
-  drawCells();
+  drawCells(false);
 
   const elapsedFrameTime = timestamp - lastTimestamp;
   const delay = Math.max(0, 1000 / (slider.value * 60 / 100) - elapsedFrameTime);
@@ -83,16 +82,30 @@ const renderLoop = (timestamp) => {
     universe.update();
     lastTimestamp = timestamp;
   }
-  animationId = requestAnimationFrame(renderLoop);
+  requestAnimationFrame(renderLoop);
 };
+
+// on window resize
+window.addEventListener('resize', () => {
+  CELL_SIZE = Math.max(1, Math.min(10, Math.floor(window.innerHeight / HEIGHT)));
+  canvas.height = (CELL_SIZE) * HEIGHT;
+  canvas.width = (CELL_SIZE) * WIDTH;
+  drawCells(true);
+});
+
+const squareDistance = (x1, y1, x2, y2) => {
+  return Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2);
+}
+
+
 
 
 const playPauseButton = document.getElementById("play-pause");
 const clearButton = document.getElementById("clear");
 
-clearButton.addEventListener("click", event => {
+clearButton.addEventListener("click", () => {
   universe.clear();
-  drawCells();
+  drawCells(false);
 });
 
 const play = () => {
@@ -158,14 +171,14 @@ const getCellColor = (type, variant) => {
 };
 
 
-const drawCells = () => {
+const drawCells = (reset) => {
   const cellsPtr = universe.dump();
   const cells = new Uint8Array(memory.buffer, cellsPtr, (WIDTH * HEIGHT) * 3);
   ctx.beginPath();
 
   for (let row = 0; row < HEIGHT; row++) {
     for (let col = 0; col < WIDTH; col++) {
-      if (cells[getIndex(row, col) * 3 + 2] == 0) continue;
+      if (cells[getIndex(row, col) * 3 + 2] == 0 && reset == false) continue;
       const idx = getIndex(row, col);
       ctx.fillStyle = getCellColor(cells[idx * 3], cells[idx * 3 + 1]);
       ctx.fillRect(
@@ -176,12 +189,8 @@ const drawCells = () => {
       );
     }
   }
-  // universe.reset_update();
 };
 
-const squareDistance = (x1, y1, x2, y2) => {
-  return Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2);
-}
 
 const customMouse = document.getElementById('custom-mouse');
 const body = document.getElementById('body');
@@ -192,18 +201,20 @@ canvas.addEventListener('mousemove', updateMousePosition);
 canvas.addEventListener("mouseleave", () => { drawing = false; customMouse.style.border = "none";body.style.cursor = "default"; });
 canvas.addEventListener("mouseenter", () => { drawing = false; customMouse.style.border = "2px solid black"; body.style.cursor = "none"; });
 canvas.addEventListener("wheel", (event) => {
-  toolSize = Math.min(10, Math.max(1, toolSize - Math.sign(event.deltaY) / 3));
+  toolSize = Math.min(10, Math.max(1.1, toolSize - Math.sign(event.deltaY) / 3));
   customMouse.style.width = toolSize * CELL_SIZE + 'px';
   customMouse.style.height = toolSize * CELL_SIZE + 'px';
-  customMouse.style.left = event.pageX - (CELL_SIZE * 2) - (toolSize * CELL_SIZE) / 2 + 'px';
-  customMouse.style.top = event.pageY - (CELL_SIZE * 2) - (toolSize * CELL_SIZE) / 2 + 'px';
+  customMouse.style.left = event.pageX - (toolSize * CELL_SIZE) / 2 + 'px';
+  customMouse.style.top = event.pageY - (toolSize * CELL_SIZE) / 2 + 'px';
 });
 
 
 // Update the position of the custom mouse based on mouse movements
 document.addEventListener('mousemove', (event) => {
-  customMouse.style.left = event.pageX - (CELL_SIZE * 2) - (toolSize * CELL_SIZE) / 2 + 'px';
-  customMouse.style.top = event.pageY - (CELL_SIZE * 2) - (toolSize * CELL_SIZE) / 2 + 'px';
+  customMouse.style.width = toolSize * CELL_SIZE + 'px';
+  customMouse.style.height = toolSize * CELL_SIZE + 'px';
+  customMouse.style.left = event.pageX -  (toolSize * CELL_SIZE) / 2 + 'px';
+  customMouse.style.top = event.pageY -  (toolSize * CELL_SIZE) / 2 + 'px';
 });
 
 requestAnimationFrame(renderLoop);
