@@ -263,5 +263,20 @@ impl Simulation {
         let element = Element::from_byte(element as u8).unwrap();
         self.world[y as usize][x as usize] = Cell::new(element);
         self.world[y as usize][x as usize].set_update();
+        self.data[((y * self.dimensions.x + x) * 3) as usize] = self.world[y as usize][x as usize].element().to_byte();
+        self.data[((y * self.dimensions.x + x) * 3 + 1) as usize] = self.world[y as usize][x as usize].variant();
+        self.data[((y * self.dimensions.x + x) * 3 + 2) as usize] = self.world[y as usize][x as usize].updated() as u8;
+    }
+
+    pub fn clear(&mut self) {
+        for y in 0..self.dimensions.y {
+            for x in 0..self.dimensions.x {
+                self.world[y as usize][x as usize] = Cell::new(Element::Air);
+                self.world[y as usize][x as usize].set_update();
+                self.data[((y * self.dimensions.x + x) * 3) as usize] = self.world[y as usize][x as usize].element().to_byte();
+                self.data[((y * self.dimensions.x + x) * 3 + 1) as usize] = self.world[y as usize][x as usize].variant();
+                self.data[((y * self.dimensions.x + x) * 3 + 2) as usize] = self.world[y as usize][x as usize].updated() as u8;
+            }
+        }
     }
 }

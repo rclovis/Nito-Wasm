@@ -42,6 +42,7 @@ const ctx = canvas.getContext('2d');
 
 let animationId = null;
 let drawing = false;
+let paused = false;
 
 let mouseX = 0;
 let mouseY = 0;
@@ -54,10 +55,8 @@ const updateMousePosition = (event) => {
 
 let lastTimestamp = 0;
 
-const renderLoop = (timestamp) => {
-  universe.update();
-  drawCells();
 
+const renderLoop = (timestamp) => {
   if (drawing) {
     const boundingRect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / boundingRect.width;
@@ -76,34 +75,38 @@ const renderLoop = (timestamp) => {
       }
     }
   }
+  drawCells();
+
   const elapsedFrameTime = timestamp - lastTimestamp;
   const delay = Math.max(0, 1000 / (slider.value * 60 / 100) - elapsedFrameTime);
-  setTimeout(() => {
-    animationId = requestAnimationFrame(renderLoop);
+  if (delay <= 0 && paused == false) {
+    universe.update();
     lastTimestamp = timestamp;
-  }, delay);
-
+  }
+  animationId = requestAnimationFrame(renderLoop);
 };
 
-const isPaused = () => {
-  return animationId === null;
-};
 
 const playPauseButton = document.getElementById("play-pause");
+const clearButton = document.getElementById("clear");
+
+clearButton.addEventListener("click", event => {
+  universe.clear();
+  drawCells();
+});
 
 const play = () => {
   playPauseButton.textContent = "⏸";
-  requestAnimationFrame(renderLoop);
+  paused = false;
 };
 
 const pause = () => {
   playPauseButton.textContent = "▶";
-  cancelAnimationFrame(animationId);
-  animationId = null;
+  paused = true;
 };
 
 playPauseButton.addEventListener("click", event => {
-  if (isPaused()) {
+  if (paused) {
     play();
   } else {
     pause();
@@ -203,4 +206,4 @@ document.addEventListener('mousemove', (event) => {
   customMouse.style.top = event.pageY - (CELL_SIZE * 2) - (toolSize * CELL_SIZE) / 2 + 'px';
 });
 
-play();
+requestAnimationFrame(renderLoop);
