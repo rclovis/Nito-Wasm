@@ -1,28 +1,14 @@
 # Nito
 
-Sandbox cellular automata simulation
+Sandbox cellular automata simulation.
+This project is the web vestion of the project [native Nito](https://github.com/ErwanGZL/Nito)
 
 ## Building and running
 
-The simulation server is written in rust and therefore is cross-platform. The graphical frontend is written in C++ and
-uses SFML, so it is also cross-platform.
+You can try the simulation by yourself at [Nito !](https://rclovis.github.io/Nito-Wasm/)
 
-Requires Rust and Cargo.
+This project was developed in rust and ported to the web using wasm.
 
-```console
-cargo build --release
-cargo run
-```
-
-The client is written in C++ and uses SFML. It is unix-only because of utilization of Unix sockets.
-
-Requires SFML and CMake.
-
-```console
-cmake -S . -B build
-cmake --build build
-./build/nito
-```
 
 ## Features:
 
