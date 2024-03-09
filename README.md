@@ -9,6 +9,8 @@ You can try the simulation by yourself at [Nito !](https://rclovis.github.io/Nit
 
 This project was developed in rust and ported to the web using wasm.
 
+![image](./images/image.png)
+
 
 ## Features:
 
