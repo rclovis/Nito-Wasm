@@ -16,11 +16,8 @@ This project was developed in rust and ported to the web using wasm.
 
 ### Technical
 
-- Simulation is implemented on a Rust backend
-- Graphical frontend is implemented in C++ using SFML
-- Multithreaded frontend and backend
-- Flexible frontend window dimensions
-- Simulation can vary in size and speed
+- Simulation is implemented in Rust
+- Graphical frontend is implemented in wasm
 
 ### Elements
 
