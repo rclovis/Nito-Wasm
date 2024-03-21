@@ -37,6 +37,9 @@ const canvas = document.getElementById("nito-canvas");
 canvas.height = (CELL_SIZE) * HEIGHT;
 canvas.width = (CELL_SIZE) * WIDTH;
 
+CELL_SIZE = Math.max(1, Math.min(10, Math.floor(window.innerHeight / HEIGHT)));
+canvas.height = (CELL_SIZE) * HEIGHT;
+canvas.width = (CELL_SIZE) * WIDTH;
 
 const ctx = canvas.getContext('2d');
 
