@@ -9,18 +9,6 @@
         src: url('FiraCode-VariableFont_wght.ttf');
       }
 
-      @keyframes blink {
-        0% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.5;
-        }
-        100% {
-          opacity: 1;
-        }
-      }
-
       :root {
         --water: rgba(33, 163, 219, 30%);
         --sand: rgba(246, 215, 176, 30%);
@@ -132,16 +120,6 @@
     <div style="display: flex; flex-direction: row;">
       <canvas id="nito-canvas"></canvas>
       <div style="display: flex; flex-direction: column;">
-
-      <button
-        style="
-          height: 40px;
-          font-weight: bold;
-          color: rgb(37, 90, 217);
-        "
-        onclick="window.open('https://github.com/rclovis/Nito-Wasm');"
-      ><span style="animation: blink 2s infinite;"
-      >Check GitHub!</span></button>
 
       <ul style="display: grid; grid-template-columns: 1fr 1fr;">
         <button id="play-pause" style="height: 40px;">⏸</button>
